@@ -1,0 +1,26 @@
+[
+  {
+    "token_address": "",
+    "min_buy_amount": 0.0,
+    "buy_step": 0,
+    "emoji": "",
+    "media_toggle": false,
+    "media_type": "photo",
+    "media_file_id": "AgACAgEAAxkBAAIDZ2cxm5SIbraoWeFo-ofKz3UmB2fLAAKJrTEbxmqRRQW_XVOBqC2UAQADAgADcwADNgQ",
+    "tg_link": "",
+    "twitter_link": "",
+    "website_link": ""
+  },
+  {
+    "token_address": "0x48b62137EdfA95a428D35C09E44256a739F6B557",
+    "min_buy_amount": 0.0,
+    "buy_step": 10,
+    "emoji": "🌉",
+    "media_toggle": true,
+    "media_type": "photo",
+    "media_file_id": "AgACAgEAAxkBAAIElGcxvsJ4851G8YDwEJWOEoUo7jMzAAIRrjEbhWmRRcJZuVrLWRvrAQADAgADcwADNgQ",
+    "tg_link": "",
+    "twitter_link": "",
+    "website_link": ""
+  }
+]
