@@ -1,11 +1,11 @@
-use std::{ops::{DerefMut, Deref}, sync::Arc, time, env};
+use std::{sync::Arc, time, env};
 // use chrono::{NaiveTime, Timelike};
-use teloxide::types::{MessageId, ChatId, InputFile, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, ForceReply};
-use teloxide::{ prelude::*, types::ParseMode::*, utils::command::BotCommands, RequestError };
+use teloxide::types::{ChatId, InputFile, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, ForceReply};
+use teloxide::{ prelude::*, utils::command::BotCommands };
 use tokio::signal;
 use reqwest::Client;
-use dotenv::dotenv;
-use log::{info, error};
+// use dotenv::dotenv;
+use log::error;
 
 
 pub mod setting_opts;
@@ -79,7 +79,7 @@ async fn main() {
         .branch(message_handler)
         .branch(callback_handler);
 
-    let bot_arc = Arc::new(bot.clone());
+    // let bot_arc = Arc::new(bot.clone());
     let setting_opts_wrapper_arc = Arc::new(setting_opts_wrapper);
 
     // let bot_arc_thread = bot_arc.clone();
@@ -98,7 +98,7 @@ async fn main() {
 
 }
 
-async fn answer(bot: Bot, msg: Message, cmd: Command, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
     let chat_type = match msg.chat.kind {
         teloxide::types::ChatKind::Private { .. } => {
             "a private chat".to_string()
@@ -110,15 +110,15 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, setting_opts_wrapper: Arc<
                 teloxide::types::PublicChatKind::Channel { .. } => "a channel".to_string(),
             }
         }
-        _ => {
-            bot.send_message(msg.chat.id, "Could not determine chat type.")
-                .await?;
-            return Ok(());
-        }
+        // _ => {
+        //     bot.send_message(msg.chat.id, "Could not determine chat type.")
+        //         .await?;
+        //     return Ok(());
+        // }
     };
-    match cmd {
-        Command::Settings{bot_username} => settings_command(bot, msg, bot_username, chat_type, setting_opts_wrapper).await,
-        Command::Start{availability} => start_command(bot, msg, availability, chat_type, setting_opts_wrapper).await,
+    let _ = match cmd {
+        Command::Settings{bot_username} => settings_command(bot, msg, bot_username, chat_type).await,
+        Command::Start{availability} => start_command(bot, msg, availability).await,
     };  
     Ok(())
 }
@@ -128,17 +128,17 @@ async fn answer_button(bot: Bot, callback: CallbackQuery, setting_opts_wrapper: 
     match callback.data {
         Some(callback_string) => {
             match callback_string.as_str() {
-                "token_address" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "token_address".to_string()).await; },
-                "min_buy_amount" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "min_buy_amount".to_string()).await; },
-                "buy_step" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "buy_step".to_string()).await; },
-                "emoji" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "emoji".to_string()).await; },
-                "media_toggle" => { let _ = media_toggle(bot, callback.from.id.into(), setting_opts_wrapper, "media_toggle".to_string()).await; },
-                "add_media" => { let _ = add_media_type(bot, callback.from.id.into(), setting_opts_wrapper, "add_media".to_string()).await; },
-                "tg_link" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "tg_link".to_string()).await; },
-                "website_link" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "website_link".to_string()).await; },
-                "twitter_link" => { let _ = message_by_callback(bot, callback.from.id.into(), setting_opts_wrapper, "twitter_link".to_string()).await; },
-                "confirm" => { let _ = confirm_style_change(bot, callback.from.id.into(), setting_opts_wrapper, "confirm".to_string()).await; },
-                "delete_token" => { let _ = delete_and_back_to_new_token(bot, callback.from.id.into(), setting_opts_wrapper, "delete_token".to_string()).await; },
+                "token_address" => { let _ = message_by_callback(bot, callback.from.id.into(), "token_address".to_string()).await; },
+                "min_buy_amount" => { let _ = message_by_callback(bot, callback.from.id.into(), "min_buy_amount".to_string()).await; },
+                "buy_step" => { let _ = message_by_callback(bot, callback.from.id.into(), "buy_step".to_string()).await; },
+                "emoji" => { let _ = message_by_callback(bot, callback.from.id.into(), "emoji".to_string()).await; },
+                "media_toggle" => { let _ = media_toggle(bot, callback.from.id.into(), setting_opts_wrapper).await; },
+                "add_media" => { let _ = add_media_type(bot, callback.from.id.into()).await; },
+                "tg_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "tg_link".to_string()).await; },
+                "website_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "website_link".to_string()).await; },
+                "twitter_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "twitter_link".to_string()).await; },
+                "confirm" => { let _ = confirm_style_change(bot, callback.from.id.into(), setting_opts_wrapper).await; },
+                "delete_token" => { let _ = delete_and_back_to_new_token(bot, callback.from.id.into(), setting_opts_wrapper).await; },
                 "photo" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_wrapper, "photo".to_string()).await; },
                 "video" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_wrapper, "video".to_string()).await; },
                 _ => { log::warn!("Received callback {} which isn't implemented.", callback_string); }
@@ -186,9 +186,9 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
             if text.len() == 42 {
                 let setting_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
                 setting_opts_wrapper.set_selected_setting_opt(setting_opt.clone()).await;
-                if let existing_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await {
-                    setting_opts_wrapper.update_setting_opt(existing_opt).await;
-                }
+                let existing_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
+                setting_opts_wrapper.update_setting_opt(existing_opt).await;
+                
 
                 bot.send_message(
                     chat_id,
@@ -294,10 +294,10 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
     Ok(())
 }
 
-async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_type: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_type: String) -> ResponseResult<()> {
     match chat_type.as_str() {
         "a private chat" => {
-            bot.send_message(msg.chat.id, format!("/settings command is not supported in this chat type."));
+            let _ = bot.send_message(msg.chat.id, format!("/settings command is not supported in this chat type."));
         }
         "a group" | "a supergroup" => {
             let sender_name = msg.from()
@@ -307,7 +307,7 @@ async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_typ
                                             .map(|user| user.first_name.clone())
                                             .unwrap_or_else(|| "Unknown User".to_string())
                                     });
-            let _ = settings(bot, msg.chat.id, sender_name, bot_username, setting_opts_wrapper).await;
+            let _ = settings(bot, msg.chat.id, sender_name, bot_username).await;
         }
         _ => {
             let _ = bot.send_message(msg.chat.id, format!("This bot helps you to read Apechain token buy information. Type /help for more information")).await;
@@ -316,17 +316,17 @@ async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_typ
     Ok(())
 }
 
-async fn start_command(bot: Bot, msg: Message, availability: String, chat_type: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+async fn start_command(bot: Bot, msg: Message, availability: String) -> ResponseResult<()> {
     match availability.as_str() {
         "available" => {
-            let _ = start(bot, msg.chat.id, msg.id, availability, setting_opts_wrapper).await;
+            let _ = start(bot, msg.chat.id).await;
         }
         _ => {}
     }
     Ok(())
 }
 
-async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String) -> ResponseResult<()> {
     let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::url(
@@ -349,7 +349,7 @@ async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: Str
     Ok(())
 }
 
-async fn start(bot: Bot, chat_id: ChatId, msg_id: MessageId, availability: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+async fn start(bot: Bot, chat_id: ChatId) -> ResponseResult<()> {
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback("Enter Token Address", "token_address")],
     ]);
@@ -399,7 +399,7 @@ async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String, token_addr
 
 
 
-async fn message_by_callback(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>, callback_string: String) -> ResponseResult<()> {
+async fn message_by_callback(bot: Bot, chat_id: ChatId, callback_string: String) -> ResponseResult<()> {
     bot.send_message(
         chat_id,
         format!("{}", callback_string)
@@ -413,21 +413,16 @@ async fn message_by_callback(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Ar
     Ok(())
 }
 
-async fn media_toggle(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>, callback_string: String) -> ResponseResult<()> {
+async fn media_toggle(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
     let mut selected_setting_opt = setting_opts_wrapper.get_selected_setting_opt().await;
     selected_setting_opt.media_toggle = !selected_setting_opt.media_toggle;
     setting_opts_wrapper.set_selected_setting_opt(selected_setting_opt.clone()).await;
     setting_opts_wrapper.update_setting_opt(selected_setting_opt.clone()).await;
-    // bot.send_message(
-    //     chat_id,
-    //     format!("{}", callback_string)
-    // )
-    // .await?;
-    // Clone before updating
+    
     setting_option(bot.clone(), chat_id, "🎉 Media toggle option is saved. Now you can adjust the other settings:".to_string(), selected_setting_opt.token_address, setting_opts_wrapper).await?;
     Ok(())
 }
-async fn add_media_type(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>, callback_string: String) -> ResponseResult<()> {
+async fn add_media_type(bot: Bot, chat_id: ChatId) -> ResponseResult<()> {
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback("Photo", "photo")],
         vec![InlineKeyboardButton::callback("Video", "video")],
@@ -461,8 +456,8 @@ async fn add_media(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingO
     Ok(())
 }
 
-async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>, callback_string: String) -> ResponseResult<()> {
-    bot.send_message(chat_id, "Just a minute. Catching new buy transactions...").await?;
+async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+    bot.send_message(chat_id, "Catching new buy transactions...").await?;
 
     let request_client = Client::new();
     let debank_api_key = std::env::var("DEBANK_API_KEY").unwrap();
@@ -508,7 +503,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
 
                             //get transaction info
                             let tx_info = get_tx_info(request_client.clone(), &flag_transaction_hash).await.unwrap();
-                            let tx_fee = controll_big_float(tx_info.fee.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32));
+                            // let tx_fee = controll_big_float(tx_info.fee.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32));
                             let tx_value = token_tx_value - tx_info.fee.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32);
                             let tx_value_output = num_floating_point(&tx_value, 5);
                             let tx_value_usd = controll_big_float(tx_value * token_price);
@@ -570,9 +565,10 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
                 }
                 Err(e) => {
                     error!("Error fetching token overview: {}", e);
-                    bot.send_message(chat_id, "Invalid token address")
+                    // bot.send_message(chat_id, "Invalid token address or Failed API request. Please try again!")
+                    bot.send_message(chat_id, e.to_string())
                         .await.unwrap();
-                    return ;
+                    return;
                 }
             };
             
@@ -580,7 +576,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
     });
     Ok(())
 }
-async fn delete_and_back_to_new_token(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>, callback_string: String) -> ResponseResult<()> {
+async fn delete_and_back_to_new_token(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
     let selected_setting_opt = setting_opts_wrapper.get_selected_setting_opt().await;
     let is_deleted = setting_opts_wrapper.delete_setting_opt(selected_setting_opt.clone()).await;
     if is_deleted {
