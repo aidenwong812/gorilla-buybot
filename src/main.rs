@@ -327,7 +327,7 @@ async fn start_command(bot: Bot, msg: Message, availability: String, chat_type: 
 }
 
 async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
-    let bot_name = std::env::var("BOT_USERNAME").unwrap();
+    let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::url(
             "Configure Settings",
