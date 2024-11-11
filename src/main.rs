@@ -117,8 +117,8 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, setting_opts_wrapper: Arc<
         }
     };
     match cmd {
-        Command::Settings {bot_username} => settings_command(bot, msg, bot_username, chat_type, setting_opts_wrapper).await,
-        Command::Start {availability} => start_command(bot, msg, availability, chat_type, setting_opts_wrapper).await,
+        Command::Settings{bot_username} => settings_command(bot, msg, bot_username, chat_type, setting_opts_wrapper).await,
+        Command::Start{availability} => start_command(bot, msg, availability, chat_type, setting_opts_wrapper).await,
     };  
     Ok(())
 }
@@ -327,11 +327,12 @@ async fn start_command(bot: Bot, msg: Message, availability: String, chat_type: 
 }
 
 async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+    let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::url(
             "Configure Settings",
             if bot_username.is_empty() {
-                "https://t.me/@daily_rs_bot?start=available".parse().unwrap()
+                format!("https://t.me/{}?start=available",bot_name).parse().unwrap()
             } else {
                 format!("https://t.me/{}?start=available", bot_username).parse().unwrap()
             }
