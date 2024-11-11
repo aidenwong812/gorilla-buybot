@@ -98,7 +98,7 @@ async fn main() {
 
 }
 
-async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
+async fn answer(bot: Bot, msg: Message, cmd: Command, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
     let chat_type = match msg.chat.kind {
         teloxide::types::ChatKind::Private { .. } => {
             "a private chat".to_string()
@@ -117,7 +117,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
         // }
     };
     let _ = match cmd {
-        Command::Settings{bot_username} => settings_command(bot, msg, bot_username, chat_type).await,
+        Command::Settings{bot_username} => settings_command(bot, msg, bot_username, chat_type, setting_opts_wrapper).await,
         Command::Start{availability} => start_command(bot, msg, availability).await,
     };  
     Ok(())
@@ -294,7 +294,7 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
     Ok(())
 }
 
-async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_type: String) -> ResponseResult<()> {
+async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_type: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
     match chat_type.as_str() {
         "a private chat" => {
             let _ = bot.send_message(msg.chat.id, format!("/settings command is not supported in this chat type."));
@@ -307,7 +307,7 @@ async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_typ
                                             .map(|user| user.first_name.clone())
                                             .unwrap_or_else(|| "Unknown User".to_string())
                                     });
-            let _ = settings(bot, msg.chat.id, sender_name, bot_username).await;
+            let _ = settings(bot, msg.chat.id, sender_name, bot_username, setting_opts_wrapper).await;
         }
         _ => {
             let _ = bot.send_message(msg.chat.id, format!("This bot helps you to read Apechain token buy information. Type /help for more information")).await;
@@ -326,13 +326,15 @@ async fn start_command(bot: Bot, msg: Message, availability: String) -> Response
     Ok(())
 }
 
-async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String) -> ResponseResult<()> {
+async fn settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+    setting_opts_wrapper.set_group_chat_id(chat_id.0).await;
+
     let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::url(
             "Configure Settings",
             if bot_username.is_empty() {
-                format!("https://t.me/{}?start=available",bot_name).parse().unwrap()
+                format!("https://t.me/{}?start=available", bot_name).parse().unwrap()
             } else {
                 format!("https://t.me/{}?start=available", bot_username).parse().unwrap()
             }
@@ -457,7 +459,9 @@ async fn add_media(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingO
 }
 
 async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
-    bot.send_message(chat_id, "Catching new buy transactions...").await?;
+    
+    let group_chat_id = setting_opts_wrapper.get_group_chat_id().await;
+    bot.send_message(ChatId(group_chat_id), "Catching new buy transactions...").await?;
 
     let request_client = Client::new();
     let debank_api_key = std::env::var("DEBANK_API_KEY").unwrap();
@@ -539,39 +543,33 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
                                 //         .await.unwrap();
                                 if media_toggle && media_file_id.clone().is_some() {
                                     if media_type == "photo" {
-                                        bot.send_photo(chat_id, InputFile::file_id(media_file_id.clone().unwrap()))
+                                        bot.send_photo(ChatId(group_chat_id), InputFile::file_id(media_file_id.clone().unwrap()))
                                             .caption(text)
                                             .parse_mode(teloxide::types::ParseMode::Html)
                                             .await.unwrap();
                                     } else if media_type == "video" {
-                                        bot.send_video(chat_id, InputFile::file_id(media_file_id.clone().unwrap()))
+                                        bot.send_video(ChatId(group_chat_id), InputFile::file_id(media_file_id.clone().unwrap()))
                                             .caption(text)
                                             .parse_mode(teloxide::types::ParseMode::Html)
                                             .await.unwrap();
                                     }
                                 } else {
-                                    bot.send_message(chat_id, text)
+                                    bot.send_message(ChatId(group_chat_id), text)
                                         .parse_mode(teloxide::types::ParseMode::Html)
                                         .await.unwrap();
                                 }
                             }
                         }
                     }
-                    else {
-                        bot.send_message(chat_id, "Not found any new transfer")
-                            .await.unwrap();
-                    }
-
                 }
                 Err(e) => {
                     error!("Error fetching token overview: {}", e);
-                    // bot.send_message(chat_id, "Invalid token address or Failed API request. Please try again!")
-                    bot.send_message(chat_id, e.to_string())
+                    // bot.send_message(ChatId(group_chat_id), "Invalid token address or Failed API request. Please try again!")
+                    bot.send_message(ChatId(group_chat_id), e.to_string())
                         .await.unwrap();
-                    return;
+                   
                 }
             };
-            
         }
     });
     Ok(())
@@ -631,7 +629,7 @@ async fn handle_save_current_setting_opts(setting_opts_wrapper_arc: Arc<SettingO
     }
 }
 
-async fn get_token_transfers(client: Client, token_address: &str) -> Result<TokenTransfer, serde_json::Error> {
+async fn get_token_transfers(client: Client, token_address: &str) -> Result<TokenTransfer, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!(
         "https://apechain.calderaexplorer.xyz/api/v2/tokens/{}/transfers",
         token_address
@@ -640,43 +638,41 @@ async fn get_token_transfers(client: Client, token_address: &str) -> Result<Toke
     let response = client
         .get(&url)
         .send()
-        .await
-        .unwrap();
+        .await?;
 
-    let text = response.text().await.unwrap();
+    let text = response.text().await?;
     
-    // Try to parse and log any error details
     match serde_json::from_str::<TokenTransfer>(&text) {
         Ok(transfer) => Ok(transfer),
         Err(e) => {
             error!("Deserialization error: {}", e);
-            Err(e)
+            Err(Box::new(e))
         }
     }
 }
 
-async fn get_tx_info(client: Client, tx_hash: &str) -> Result<TxInfo, serde_json::Error> {
+async fn get_tx_info(client: Client, tx_hash: &str) -> Result<TxInfo, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("https://apechain.calderaexplorer.xyz/api/v2/transactions/{}", tx_hash);
-    let response = client.get(&url).send().await.unwrap();
-    let text = response.text().await.unwrap();
+    let response = client.get(&url).send().await?;
+    let text = response.text().await?;
     match serde_json::from_str::<TxInfo>(&text) {
         Ok(tx_info) => Ok(tx_info),
         Err(e) => {
             error!("Deserialization error: {}", e);
-            Err(e)
+            Err(Box::new(e))
         }
     }
 }   
 
-async fn get_token_overview(client: Client, api_key: &str, token_address: &str) -> Result<TokenOverview, serde_json::Error> {
+async fn get_token_overview(client: Client, api_key: &str, token_address: &str) -> Result<TokenOverview, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("https://pro-openapi.debank.com/v1/token?chain_id=ape&id={}", token_address);
-    let response = client.get(&url).header("Accesskey", api_key).send().await.unwrap();
-    let text = response.text().await.unwrap();
+    let response = client.get(&url).header("Accesskey", api_key).send().await?;
+    let text = response.text().await?;
     match serde_json::from_str::<TokenOverview>(&text) {
         Ok(token_overview) => Ok(token_overview),
         Err(e) => {
             error!("Deserialization error: {}", e);
-            Err(e)
+            Err(Box::new(e))
         }
     }
 }

@@ -1,5 +1,6 @@
 use serde::{ Serialize, Deserialize };
 use tokio::sync::RwLock;
+
 use std::{
     error::Error, 
     // path::Path,
@@ -43,15 +44,20 @@ pub type SettingOptsVector = Arc<RwLock<Vec<SettingOpts>>>;
 
 #[derive(Debug)]
 pub struct SettingOptsWrapper {
-    pub setting_opts: SettingOptsVector,
+    pub group_chat_id: RwLock<i64>,
     pub selected_setting_opt: RwLock<SettingOpts>,
+    pub setting_opts: SettingOptsVector,
 }
 
 impl Clone for SettingOptsWrapper {
     fn clone(&self) -> Self {
+        // Create a new RwLock with the value from the existing one
+        
+        
         Self {
+            group_chat_id: RwLock::new(0),
+            selected_setting_opt: RwLock::new(SettingOpts::default()),
             setting_opts: self.setting_opts.clone(),  // Arc can be cloned
-            selected_setting_opt: RwLock::new(SettingOpts::default()),  // Create new RwLock instead of cloning
         }
     }
 }
@@ -59,8 +65,9 @@ impl Clone for SettingOptsWrapper {
 impl SettingOptsWrapper {
     pub fn new() -> Self {
         Self {
-            setting_opts: Arc::new(RwLock::new(Vec::new())),
+            group_chat_id: RwLock::new(0),
             selected_setting_opt: RwLock::new(SettingOpts::default()),
+            setting_opts: Arc::new(RwLock::new(Vec::new())),
         }
     }
     
@@ -168,6 +175,15 @@ impl SettingOptsWrapper {
     pub async fn get_selected_setting_opt(&self) -> SettingOpts {
         let selected = self.selected_setting_opt.read().await;
         selected.clone()
+    }
+
+    pub async fn set_group_chat_id(&self, id: i64) {
+        let mut guard = self.group_chat_id.write().await;
+        *guard = id;
+    }
+
+    pub async fn get_group_chat_id(&self) -> i64 {
+        *self.group_chat_id.read().await
     }
 
 }

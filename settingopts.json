@@ -14,7 +14,7 @@
   {
     "token_address": "0x48b62137EdfA95a428D35C09E44256a739F6B557",
     "min_buy_amount": 0.0,
-    "buy_step": 5,
+    "buy_step": 2,
     "emoji": "👍",
     "media_toggle": false,
     "media_type": "photo",
@@ -41,9 +41,9 @@
     "buy_step": 30,
     "emoji": "💎",
     "media_toggle": true,
-    "media_type": "",
-    "media_file_id": null,
-    "tg_link": "",
+    "media_type": "photo",
+    "media_file_id": "AgACAgEAAxkBAAMVZzI2B5XDhZJusFqX_JohOh20Z-oAAr-sMRuM9phFJ5mf0B3E_1gBAAMCAANzAAM2BA",
+    "tg_link": "https://t.me/CryptoGod0117",
     "twitter_link": "",
     "website_link": ""
   }
