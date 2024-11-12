@@ -306,6 +306,7 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
 }
 
 async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_type: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
+    // println!("message: {:?}", msg);
     match chat_type.as_str() {
         "a private chat" => {
             let _ = bot.send_message(msg.chat.id, format!("/settings command is not supported in this chat type."));
@@ -382,7 +383,8 @@ async fn start(bot: Bot, chat_id: ChatId) -> ResponseResult<()> {
 
 async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String, token_address: String, setting_opts_wrapper: Arc<SettingOptsWrapper>) -> ResponseResult<()> {
     let selected_setting_opt = setting_opts_wrapper.find_setting_opt(token_address).await;
-    let group_chat_link = std::env::var("GROUP_CHAT_LINK").unwrap_or_default();
+    // let group_chat_link = std::env::var("GROUP_CHAT_LINK").unwrap_or_default();
+    let group_chat_id = setting_opts_wrapper.get_group_chat_id().await;
     let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
 
 
@@ -396,18 +398,18 @@ async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String, token_addr
         vec![InlineKeyboardButton::callback(format!("Change Twitter Link: {}", selected_setting_opt.twitter_link), "twitter_link")],
         vec![InlineKeyboardButton::callback(format!("Change Website Link: {}", selected_setting_opt.website_link), "website_link")],
         vec![InlineKeyboardButton::callback("Delete Token", "delete_token")],
-        vec![
-            // InlineKeyboardButton::callback("Confirm", "confirm"),
-            InlineKeyboardButton::url(
-                "Go back to group",
-                format!("{}", group_chat_link).parse().unwrap()
-            )
-        ]
+        // vec![
+        //     // InlineKeyboardButton::callback("Confirm", "confirm"),
+        //     InlineKeyboardButton::url(
+        //         "Go back to group",
+        //         format!("https://t.me/c/{}", group_chat_id).parse().unwrap()
+        //     )
+        // ]
     ]);
        
     // First message with keyboard
     bot.send_message(
-        chat_id, 
+        chat_id,
         format!("{}", head_text)
     )
     .reply_markup(keyboard)
