@@ -27,12 +27,12 @@
     "token_address": "0x48b62137EdfA95a428D35C09E44256a739F6B557",
     "min_buy_amount": 0.0,
     "buy_step": 2,
-    "emoji": "🐊",
-    "media_toggle": false,
+    "emoji": "✝",
+    "media_toggle": true,
     "media_type": "photo",
     "media_file_id": "AgACAgEAAxkBAANpZzLs7s2bie29mBgxRL_opfCp54QAAuusMRuM9phFok-i068KazsBAAMCAANzAAM2BA",
     "tg_link": "https://t.me/asdasdfasdfasdfas",
     "twitter_link": "https://x.com/asdfasdf",
-    "website_link": "https://cursor.ai.com"
+    "website_link": "https://asdfasdf"
   }
 ]
