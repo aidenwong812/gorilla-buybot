@@ -137,7 +137,7 @@ async fn answer_button(bot: Bot, callback: CallbackQuery, setting_opts_wrapper: 
                 "tg_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "tg_link".to_string()).await; },
                 "website_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "website_link".to_string()).await; },
                 "twitter_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "twitter_link".to_string()).await; },
-                "confirm" => { let _ = confirm_style_change(bot, callback.from.id.into(), setting_opts_wrapper).await; },
+                // "confirm" => { let _ = confirm_style_change(bot, callback.from.id.into(), setting_opts_wrapper).await; },
                 "delete_token" => { let _ = delete_and_back_to_new_token(bot, callback.from.id.into(), setting_opts_wrapper).await; },
                 "photo" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_wrapper, "photo".to_string()).await; },
                 "video" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_wrapper, "video".to_string()).await; },
@@ -166,6 +166,10 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
                 setting_option(bot.clone(), chat_id, "🎉 Photo saved. Now you can adjust other settings:".to_string(), selected_setting_opt.token_address, setting_opts_wrapper).await?;
                 return Ok(());
             }
+        } else {
+            let selected_setting_opt = setting_opts_wrapper.get_selected_setting_opt().await;
+            setting_option(bot.clone(), chat_id, "❌ Invalid photo style. Please again".to_string(), selected_setting_opt.token_address, setting_opts_wrapper).await?;
+            return Ok(());
         }
     } else if msg.video().is_some() {
         if reply_text == Some("video") {
@@ -180,41 +184,48 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_wrapper: Ar
                 setting_option(bot.clone(), chat_id, "🎉 Video saved. Now you can adjust the other settings:".to_string(), selected_setting_opt.token_address, setting_opts_wrapper).await?;
                 return Ok(());
             }
+        } else {
+            let selected_setting_opt = setting_opts_wrapper.get_selected_setting_opt().await;
+            setting_option(bot.clone(), chat_id, "❌ Invalid video style. Please again".to_string(), selected_setting_opt.token_address, setting_opts_wrapper).await?;
+            return Ok(());
         }
     }  else if let Some(text) = msg.text() {
         if text.starts_with("0x") {
             if text.len() == 42 {
-                let setting_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
-                setting_opts_wrapper.set_selected_setting_opt(setting_opt.clone()).await;
-                let existing_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
-                setting_opts_wrapper.update_setting_opt(existing_opt).await;
-                
+                if reply_text == Some("token_address") {
+                    let setting_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
+                    setting_opts_wrapper.set_selected_setting_opt(setting_opt.clone()).await;
+                    let existing_opt = setting_opts_wrapper.find_setting_opt(text.to_string()).await;
+                    setting_opts_wrapper.update_setting_opt(existing_opt).await;
+                    
+                    bot.send_message(
+                        chat_id,
+                        format!("✅ Token address saved: {}", text)
+                    ).await?;
 
-                bot.send_message(
-                    chat_id,
-                    format!("✅ Token address saved: {}", text)
-                ).await?;
-
-                setting_option(bot.clone(), chat_id, "🎉 Token address saved. Now you can adjust the other settings:".to_string(), text.to_string(), setting_opts_wrapper).await?;
-            } else{
-                bot.send_message(
-                    chat_id,
-                    format!("❌ Token address is not valid.")
-                ).await?;
+                    setting_option(bot.clone(), chat_id, "🎉 Token address saved. Now you can adjust the other settings:".to_string(), text.to_string(), setting_opts_wrapper.clone()).await?;
+                    let _ = confirm_style_change(bot.clone(), chat_id, setting_opts_wrapper.clone()).await;
+                } else{
+                    bot.send_message(
+                        chat_id,
+                        format!("❌ Token address is not valid. Try again")
+                    ).await?;
+                    message_by_callback(bot.clone(), chat_id, "token_address".to_string()).await?;
+                }
             }
         } 
         else if let Some(reply_text) = reply_text {
             let mut selected_setting_opt = setting_opts_wrapper.get_selected_setting_opt().await;
             let mut head_text = "";
             match reply_text {
-                "token_address" => {
-                    if is_token_address(text) {
-                        selected_setting_opt.token_address = text.to_string();
-                        head_text = "🎉 Token address saved. Now you can adjust the other settings:";
-                    } else {
-                        head_text = "❌ Token address is not valid. Please try again.";
-                    }
-                },
+                // "token_address" => {
+                //     if is_token_address(text) {
+                //         selected_setting_opt.token_address = text.to_string();
+                //         head_text = "🎉 Token address saved. Now you can adjust the other settings:";
+                //     } else {
+                //         head_text = "❌ Token address is not valid. Please try again.";
+                //     }
+                // },
                 "min_buy_amount" => {
                     if let Ok(amount) = text.parse::<f64>() {
                         selected_setting_opt.min_buy_amount = amount;
@@ -386,7 +397,7 @@ async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String, token_addr
         vec![InlineKeyboardButton::callback(format!("Change Website Link: {}", selected_setting_opt.website_link), "website_link")],
         vec![InlineKeyboardButton::callback("Delete Token", "delete_token")],
         vec![
-            InlineKeyboardButton::callback("Confirm", "confirm"),
+            // InlineKeyboardButton::callback("Confirm", "confirm"),
             InlineKeyboardButton::url(
                 "Go back to group",
                 format!("{}", group_chat_link).parse().unwrap()
@@ -472,16 +483,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
 
     let request_client = Client::new();
     let debank_api_key = std::env::var("DEBANK_API_KEY").unwrap();
-    let token_adr = setting_opts_wrapper.get_selected_setting_opt().await.token_address;
-    let website_link = setting_opts_wrapper.get_selected_setting_opt().await.website_link;
-    let tg_link = setting_opts_wrapper.get_selected_setting_opt().await.tg_link;
-    let twitter_link = setting_opts_wrapper.get_selected_setting_opt().await.twitter_link;
-    let emoji = setting_opts_wrapper.get_selected_setting_opt().await.emoji;
-    let min_buy_amount = setting_opts_wrapper.get_selected_setting_opt().await.min_buy_amount;
-    let buy_step = setting_opts_wrapper.get_selected_setting_opt().await.buy_step;
-    let media_toggle = setting_opts_wrapper.get_selected_setting_opt().await.media_toggle;
-    let media_file_id = setting_opts_wrapper.get_selected_setting_opt().await.media_file_id;
-    let media_type = setting_opts_wrapper.get_selected_setting_opt().await.media_type;
+    
 
     let interval = tokio::time::interval(std::time::Duration::from_secs(5));
     tokio::spawn(async move {
@@ -489,6 +491,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
         let mut flag_transaction_hash = String::new();
         loop {
             interval.tick().await;
+            let token_adr = setting_opts_wrapper.get_selected_setting_opt().await.token_address;
             let setting_opt_exists = setting_opts_wrapper.setting_opt_exists(token_adr.clone()).await;
             if setting_opt_exists {
                 match get_token_transfers(request_client.clone(), &token_adr).await {
@@ -498,7 +501,18 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
                             let current_transaction_to_name = first_transfer.to.name.clone().unwrap_or_default();
                             if flag_transaction_hash != transaction_hash && !current_transaction_to_name.is_empty() {
                                 flag_transaction_hash = transaction_hash;
-                            
+                                
+                                //get setting options
+                                let website_link = setting_opts_wrapper.get_selected_setting_opt().await.website_link;
+                                let tg_link = setting_opts_wrapper.get_selected_setting_opt().await.tg_link;
+                                let twitter_link = setting_opts_wrapper.get_selected_setting_opt().await.twitter_link;
+                                let emoji = setting_opts_wrapper.get_selected_setting_opt().await.emoji;
+                                let min_buy_amount = setting_opts_wrapper.get_selected_setting_opt().await.min_buy_amount;
+                                let buy_step = setting_opts_wrapper.get_selected_setting_opt().await.buy_step;
+                                let media_toggle = setting_opts_wrapper.get_selected_setting_opt().await.media_toggle;
+                                let media_file_id = setting_opts_wrapper.get_selected_setting_opt().await.media_file_id;
+                                let media_type = setting_opts_wrapper.get_selected_setting_opt().await.media_type;
+                                
                                 //get token overview
                                 let token_overview = get_token_overview(request_client.clone(), &debank_api_key, &token_adr).await.unwrap();
                                 let token_price = token_overview.price;
