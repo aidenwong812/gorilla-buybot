@@ -176,7 +176,7 @@ impl SettingOptsWrapper {
         let selected = self.selected_setting_opt.read().await;
         selected.clone()
     }
-
+    
     pub async fn set_group_chat_id(&self, id: i64) {
         let mut guard = self.group_chat_id.write().await;
         *guard = id;
