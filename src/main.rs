@@ -551,7 +551,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts_wrapper: A
                                         💰 Got: {6} ${3}\n\
                                         ✅ Dex: <a href=\"https://ape.express/explore/{0}?\">Ape_Express</a> | \
                                         🔖 <a href=\"https://t.me/Apechain_Trending_Bot\">Book Trending</a> - \
-                                        <a href=\"https://t.me/ApechainAds_Bot\">DexScreener</a>\n\
+                                        <a href=\"https://t.me/ApechainAds_Bot\">ADS</a>\n\
                                         🏷️ Price: ${7}\n\
                                         📊 Marketcap: ${5}\n\n\
                                         <a href=\"https://apechain.calderaexplorer.xyz/tx/{4}\">TX</a> | \
