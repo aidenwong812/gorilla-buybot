@@ -22,5 +22,17 @@
     "tg_link": "",
     "twitter_link": "",
     "website_link": ""
+  },
+  {
+    "token_address": "0xFC2744A6Db0f97c606Df786b97255DFf6F27E320",
+    "min_buy_amount": 0.0,
+    "buy_step": 15,
+    "emoji": "💎",
+    "media_toggle": true,
+    "media_type": "photo",
+    "media_file_id": "AgACAgEAAxkBAAIBGmc2FwfpcyvoMFwoDeK8QyuxzbeYAAJwrTEbZ0ywRWTR509bAfngAQADAgADcwADNgQ",
+    "tg_link": "https://t.me/gorilla_buy_bot",
+    "twitter_link": "",
+    "website_link": ""
   }
 ]
