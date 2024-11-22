@@ -1,16 +1,9 @@
 use serde::{ Serialize, Deserialize };
-use tokio::sync::RwLock;
-
-use std::{
-    error::Error, 
-    sync::Arc
-};
-use std::ops::Deref;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingOpts {
     pub user_id: String,
-    pub group_chat_id: i64,
+    pub group_chat_id: String,
     pub token_address: String,
     pub min_buy_amount: f64,
     pub buy_step: i32,
@@ -27,7 +20,7 @@ impl Default for SettingOpts {
     fn default() -> Self {
         Self {
             user_id: String::new(),
-            group_chat_id: 0,
+            group_chat_id: String::new(),
             token_address: String::new(),
             min_buy_amount: 0.0,
             buy_step: 30,

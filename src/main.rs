@@ -1,7 +1,6 @@
-use std::{sync::Arc, time, env};
+use std::sync::Arc;
 use teloxide::types::{ChatId, InputFile, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, ForceReply};
 use teloxide::{ prelude::*, utils::command::BotCommands };
-use tokio::signal;
 use tokio::sync::RwLock;
 use reqwest::Client;
 use log::error;
@@ -29,11 +28,6 @@ fn get_conn_pool() -> Pool {
     Pool::new(url).unwrap()
 }
 
-/// The default file path for the file where the setting options will be saved
-const DEFAULT_SETTING_OPT_FILE_PATH: &str = "settingopts.json";
-/// The name of the environment variable where the path of the setting_opt_file_path can be specified
-const SETTING_OPT_ENV: &str = "TELOXIDE_SETTINGOPTFILE";
-
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase", description = "These commands are supported:")]
 enum Command {
@@ -51,7 +45,7 @@ async fn main() {
     log::info!("Starting Gorilla Buy...");
 
     let bot: Bot = Bot::from_env();
-    let bot_arc = Arc::new(bot.clone());
+    // let bot_arc = Arc::new(bot.clone());
 
     let bot_commands = Command::bot_commands();
     if bot.set_my_commands(bot_commands).await.is_err() {
@@ -147,12 +141,12 @@ async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_typ
 
                 //Update setting_opts_arc with user_id and group_chat_id
                 setting_opts_arc.write().await.user_id = user.id.to_string();
-                setting_opts_arc.write().await.group_chat_id = msg.chat.id.0;
+                setting_opts_arc.write().await.group_chat_id = msg.chat.id.to_string();
 
                 let sender_name = user.username.clone()
                     .unwrap_or_else(|| user.first_name.clone());
                 
-                let _ = start_settings(bot, msg.chat.id, sender_name, bot_username, setting_opts_arc.clone()).await;
+                let _ = start_settings(bot, msg.chat.id, sender_name, bot_username).await;
             } else {
                 log::warn!("No user information found in message");
                 let _ = bot.send_message(msg.chat.id, "Could not process user information").await;
@@ -165,8 +159,7 @@ async fn settings_command(bot: Bot, msg: Message, bot_username: String, chat_typ
     Ok(())
 }
 
-async fn start_settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String, setting_opts_arc: Arc<RwLock<SettingOpts>>) -> ResponseResult<()> {
-    // setting_opts_arc.write().await.group_chat_id = chat_id.0;
+async fn start_settings(bot: Bot, chat_id: ChatId, username: String, bot_username: String) -> ResponseResult<()> {
 
     let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
     let keyboard = InlineKeyboardMarkup::new(vec![
@@ -232,7 +225,6 @@ async fn answer_button(bot: Bot, callback: CallbackQuery, setting_opts_arc: Arc<
                 "tg_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "tg_link".to_string()).await; },
                 "website_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "website_link".to_string()).await; },
                 "twitter_link" => { let _ = message_by_callback(bot, callback.from.id.into(), "twitter_link".to_string()).await; },
-                // "confirm" => { let _ = confirm_style_change(bot, callback.from.id.into(), setting_opts_arc).await; },
                 "delete_token" => { let _ = delete_and_back_to_new_token(bot, callback.from.id.into(), setting_opts_arc).await; },
                 "photo" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_arc, "photo".to_string()).await; },
                 "video" => { let _ = add_media(bot, callback.from.id.into(), setting_opts_arc, "video".to_string()).await; },
@@ -263,7 +255,7 @@ async fn media_toggle(bot: Bot, chat_id: ChatId, setting_opts_arc: Arc<RwLock<Se
     let pool = get_conn_pool();
     let toogle_value = !(setting_opts_arc.read().await.media_toggle);
     setting_opts_arc.write().await.media_toggle = toogle_value;
-    save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+    let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
     
     setting_option(bot.clone(), chat_id, "🎉 Media toggle option is saved. Now you can adjust the other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
     Ok(())
@@ -289,7 +281,7 @@ async fn select_media_type(bot: Bot, chat_id: ChatId) -> ResponseResult<()> {
 async fn add_media(bot: Bot, chat_id: ChatId, setting_opts_arc: Arc<RwLock<SettingOpts>>, callback_string: String) -> ResponseResult<()> {
     let pool = get_conn_pool();
     setting_opts_arc.write().await.media_type = callback_string.to_string();
-    save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+    let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
     bot.send_message(
         chat_id,
         format!("{}", callback_string)
@@ -316,7 +308,7 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_arc: Arc<Rw
                 setting_opts_arc.write().await.media_file_id = Some(latest_photo[0].file.id.clone());
                 
                 // Update the settings
-                save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+                let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
                
                 setting_option(bot.clone(), chat_id, "🎉 Photo saved. Now you can adjust other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
                 return Ok(());
@@ -332,7 +324,7 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_arc: Arc<Rw
                 setting_opts_arc.write().await.media_file_id = Some(latest_video.file.id.clone());
                 
                 // Update the settings
-                save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+                let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
 
                 setting_option(bot.clone(), chat_id, "🎉 Video saved. Now you can adjust the other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
                 return Ok(());
@@ -342,40 +334,52 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_arc: Arc<Rw
             return Ok(());
         }
     }  else if let Some(text) = msg.text() {
-        if text.starts_with("0x") {
-            if text.len() == 42 {
-                if reply_text == Some("token_address") {
-                    let mut existing_settings = get_setting_opt(&pool, user_id.clone(), text.to_string()).await.unwrap();
-                    let group_chat_id = setting_opts_arc.read().await.group_chat_id;
-                    existing_settings.group_chat_id = group_chat_id;
-                    // println!("Found existing settings: {:?}", existing_settings.clone());
-                    *setting_opts_arc.write().await = existing_settings.clone();
-                    save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+        // if text.starts_with("0x") {
+        //     if text.len() == 42 {
+        //         if reply_text == Some("token_address") {
+        //             let group_chat_id = setting_opts_arc.read().await.group_chat_id.clone();
+        //             let existing_settings = get_setting_opt(&pool, user_id.to_string().clone(), group_chat_id.clone(), text.to_string()).await.unwrap();
+        //             // println!("Found existing settings: {:?}", existing_settings.clone());
+        //             *setting_opts_arc.write().await = existing_settings.clone();
+        //             let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
                     
-                    setting_option(bot.clone(), chat_id, "🎉 Token address saved. Now you can adjust the other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
-                    let _ = confirm_style_change(bot.clone(), chat_id, setting_opts_arc.read().await.clone()).await;
+        //             setting_option(bot.clone(), chat_id, "🎉 Token address saved. Now you can adjust the other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
+        //             let _ = confirm_style_change(bot.clone(), setting_opts_arc.read().await.clone()).await;
 
                       
-                } else{
-                    bot.send_message(
-                        chat_id,
-                        format!("❌ Token address is not valid. Try again")
-                    ).await?;
-                    message_by_callback(bot.clone(), chat_id, "token_address".to_string()).await?;
-                }
-            }
-        } 
-        else if let Some(reply_text) = reply_text {
+        //         } else{
+        //             bot.send_message(
+        //                 chat_id,
+        //                 format!("❌ Token address is not valid. Try again")
+        //             ).await?;
+        //             message_by_callback(bot.clone(), chat_id, "token_address".to_string()).await?;
+        //         }
+        //     }
+        // } 
+        // else 
+        if let Some(reply_text) = reply_text {
             let mut head_text = "";
             match reply_text {
-                // "token_address" => {
-                //     if is_token_address(text) {
-                //         selected_setting_opt.token_address = text.to_string();
-                //         head_text = "🎉 Token address saved. Now you can adjust the other settings:";
-                //     } else {
-                //         head_text = "❌ Token address is not valid. Please try again.";
-                //     }
-                // },
+                "token_address" => {
+                    if is_token_address(text) {
+                        let group_chat_id = setting_opts_arc.read().await.group_chat_id.clone();
+                        let existing_settings = get_setting_opt(&pool, user_id.to_string().clone(), group_chat_id.clone(), text.to_string()).await.unwrap();
+                        // println!("Found existing settings: {:?}", existing_settings.clone());
+                        *setting_opts_arc.write().await = existing_settings.clone();
+                        // let _ = save_setting_opts_db(&pool, setting_opts_arc.read().await.clone()).await;
+                        head_text = "🎉 Token address saved. Now you can adjust the other settings:";
+                        
+                        // setting_option(bot.clone(), chat_id, "🎉 Token address saved. Now you can adjust the other settings:".to_string(), setting_opts_arc.read().await.clone()).await?;
+                        let _ = confirm_style_change(bot.clone(), setting_opts_arc.read().await.clone()).await;
+                    } else {
+                        bot.send_message(
+                            chat_id,
+                            format!("❌ Token address is not valid. Try again")
+                        ).await?;
+                        message_by_callback(bot.clone(), chat_id, "token_address".to_string()).await?;
+                        return Ok(());
+                    }
+                },
                 "min_buy_amount" => {
                     if let Ok(amount) = text.parse::<f64>() {
                         setting_opts_arc.write().await.min_buy_amount = amount;
@@ -455,8 +459,6 @@ async fn answer_replyed_message(bot: Bot, msg: Message, setting_opts_arc: Arc<Rw
 }
 
 async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String,  setting_opts: SettingOpts) -> ResponseResult<()> {
-    // let group_chat_id = setting_opts.group_chat_id;
-    // let bot_name = std::env::var("BOT_USERNAME").unwrap_or_default();
 
     let keyboard = InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(format!("Change minBuy: {}", setting_opts.min_buy_amount), "min_buy_amount")],
@@ -491,9 +493,9 @@ async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String,  setting_o
     Ok(())
 }
 
-async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts: SettingOpts) -> ResponseResult<()> {
+async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseResult<()> {
     let group_chat_id = setting_opts.group_chat_id;
-    bot.send_message(ChatId(group_chat_id), "Catching new buy transactions...").await?;
+    bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), "Catching new buy transactions...").await?;
 
     let request_client = Client::new();
     let debank_api_key = std::env::var("DEBANK_API_KEY").unwrap();
@@ -533,7 +535,7 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts: SettingOp
 
                                 //make message
                                 let token_address = &token_transfer.items[0].token.address;
-                                let token_name = &token_transfer.items[0].token.name;
+                                // let token_name = &token_transfer.items[0].token.name;
                                 let token_symbol = &token_transfer.items[0].token.symbol;
                                 let token_decimals = &token_transfer.items[0].token.decimals.parse().unwrap_or(0.0);
                                 let token_tx_decimal = &token_transfer.items[0].total.decimals.parse().unwrap_or(0.0);
@@ -579,18 +581,18 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts: SettingOp
                                     //         .await.unwrap();
                                     if *media_toggle && media_file_id.clone().is_some() {
                                         if media_type == "photo" {
-                                            bot.send_photo(ChatId(group_chat_id), InputFile::file_id(media_file_id.clone().unwrap()))
+                                            bot.send_photo(ChatId(group_chat_id.parse().expect("REASON")), InputFile::file_id(media_file_id.clone().unwrap()))
                                                 .caption(text)
                                                 .parse_mode(teloxide::types::ParseMode::Html)
                                                 .await.unwrap();
                                         } else if media_type == "video" {
-                                            bot.send_video(ChatId(group_chat_id), InputFile::file_id(media_file_id.clone().unwrap()))
+                                            bot.send_video(ChatId(group_chat_id.parse().expect("REASON")), InputFile::file_id(media_file_id.clone().unwrap()))
                                                 .caption(text)
                                                 .parse_mode(teloxide::types::ParseMode::Html)
                                                 .await.unwrap();
                                         }
                                     } else {
-                                        bot.send_message(ChatId(group_chat_id), text)
+                                        bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), text)
                                             .parse_mode(teloxide::types::ParseMode::Html)
                                             .await.unwrap();
                                     }
@@ -598,15 +600,15 @@ async fn confirm_style_change(bot: Bot, chat_id: ChatId, setting_opts: SettingOp
                             }
                         }
                         else {
-                            bot.send_message(ChatId(group_chat_id), "Not found any new transfer")
+                            bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), "Not found any new transfer")
                                 .await.unwrap();
                         }
 
                     }
                     Err(e) => {
                         error!("Error fetching token overview: {}", e);
-                        // bot.send_message(ChatId(group_chat_id), "Invalid token address or Failed API request. Please try again!")
-                        // bot.send_message(ChatId(group_chat_id), e.to_string())
+                        // bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), "Invalid token address or Failed API request. Please try again!")
+                        // bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), e.to_string())
                         //     .await.unwrap();
                         continue;
                     }
@@ -628,6 +630,7 @@ async fn delete_and_back_to_new_token(bot: Bot, chat_id: ChatId, setting_opts_ar
             format!("The token {} is deleted. Please return to group chat.", setting_opts_arc.read().await.token_address)
         )
         .await?;
+    *setting_opts_arc.write().await = SettingOpts::default();
     } else {
         bot.send_message(
             chat_id,
@@ -635,10 +638,10 @@ async fn delete_and_back_to_new_token(bot: Bot, chat_id: ChatId, setting_opts_ar
         )
         .await?;
     }
+    // println!("delete_and_back_to_new_token:  {:?}", setting_opts_arc.read().await);
 
     Ok(())
 }
-
 
 async fn get_token_transfers(client: Client, token_address: &str) -> Result<TokenTransfer, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!(
@@ -722,7 +725,7 @@ fn init_database(pool: &Pool) -> Result<(), Box<dyn std::error::Error>> {
         CREATE TABLE IF NOT EXISTS setting_opts (
             id VARCHAR(255) PRIMARY KEY,
             user_id VARCHAR(255) NOT NULL,
-            group_chat_id BIGINT NOT NULL,
+            group_chat_id VARCHAR(255) NOT NULL,
             token_address VARCHAR(42) NOT NULL,
             min_buy_amount DOUBLE NOT NULL,
             buy_step INT NOT NULL,
@@ -769,7 +772,7 @@ async fn save_setting_opts_db(pool: &Pool, opt: SettingOpts) -> Result<(), Box<d
     let mut conn = pool.get_conn()?;
     
     let params = params! {
-        "id" => format!("{}/{}", &opt.user_id, &opt.token_address),
+        "id" => format!("{}/{}/{}", &opt.user_id, &opt.group_chat_id, &opt.token_address),
         "user_id" => &opt.user_id,
         "group_chat_id" => opt.group_chat_id,
         "token_address" => &opt.token_address,
@@ -818,28 +821,28 @@ async fn save_setting_opts_db(pool: &Pool, opt: SettingOpts) -> Result<(), Box<d
 
 
 
-async fn get_setting_opt(pool: &Pool, userid: String, token_adr: String) -> Result<SettingOpts, Box<dyn std::error::Error>> {
+async fn get_setting_opt(pool: &Pool, user_id: String, group_id: String, token_adr: String) -> Result<SettingOpts, Box<dyn std::error::Error>> {
     let mut conn = pool.get_conn()?;
     let result = conn.exec_first(
-            r"SELECT 
-                CAST(user_id AS CHAR) as user_id,
-                group_chat_id,
-                CAST(token_address AS CHAR) as token_address,
-                min_buy_amount,
-                buy_step,
-                CAST(emoji AS CHAR) as emoji,
-                media_toggle,
-                NULLIF(CAST(media_file_id AS CHAR), '') as media_file_id,
-                CAST(media_type AS CHAR) as media_type,
-                CAST(tg_link AS CHAR) as tg_link,
-                CAST(website_link AS CHAR) as website_link,
-                CAST(twitter_link AS CHAR) as twitter_link
-              FROM setting_opts 
-              WHERE token_address = ? AND user_id = ?
-              LIMIT 1",
-            (token_adr.clone(), userid.clone()),
-        )?;
-
+        r"SELECT 
+            CAST(user_id AS CHAR) as user_id,
+            CAST(group_chat_id AS CHAR) as group_chat_id,
+            CAST(token_address AS CHAR) as token_address,
+            min_buy_amount,
+            buy_step,
+            CAST(emoji AS CHAR) as emoji,
+            media_toggle,
+            NULLIF(CAST(media_file_id AS CHAR), '') as media_file_id,
+            CAST(media_type AS CHAR) as media_type,
+            CAST(tg_link AS CHAR) as tg_link,
+            CAST(website_link AS CHAR) as website_link,
+            CAST(twitter_link AS CHAR) as twitter_link
+          FROM setting_opts 
+          WHERE token_address = ? AND user_id = ? AND group_chat_id = ?
+          LIMIT 1",
+        (token_adr.clone(), user_id.clone(), group_id.clone()),
+    )?;
+        // println!("result@@@: {:?}", result);
     if let Some((user_id, group_chat_id, token_address, min_buy_amount, buy_step, emoji,
         media_toggle, media_file_id, media_type, tg_link, website_link, twitter_link)) = result {
         Ok(SettingOpts {
@@ -858,8 +861,8 @@ async fn get_setting_opt(pool: &Pool, userid: String, token_adr: String) -> Resu
         })
     } else {
         Ok(SettingOpts {
-            user_id: userid.clone(),
-            group_chat_id: 0,
+            user_id: user_id.clone(),
+            group_chat_id: group_id.clone(),
             token_address: token_adr.to_string(),
             min_buy_amount: 0.0,
             buy_step: 30,
@@ -877,7 +880,7 @@ async fn get_setting_opt(pool: &Pool, userid: String, token_adr: String) -> Resu
 async fn delete_setting_opt_from_db(pool: &Pool, token_address: &str, user_id: String) -> Result<bool, Box<dyn std::error::Error>> {
     let mut conn = pool.get_conn()?;
     
-    let result = conn.exec_drop(
+    let _result = conn.exec_drop(
         r"DELETE FROM setting_opts 
           WHERE token_address = ? AND user_id = ?",
         (token_address, user_id),
