@@ -494,7 +494,10 @@ async fn setting_option(bot: Bot, chat_id: ChatId, head_text: String,  setting_o
 }
 
 async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseResult<()> {
+    let pool = get_conn_pool().clone();
+    let user_id = setting_opts.user_id;
     let group_chat_id = setting_opts.group_chat_id;
+    let token_adr = setting_opts.token_address;
     bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), "Catching new buy transactions...").await?;
 
     let request_client = Client::new();
@@ -507,26 +510,37 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
         let mut flag_transaction_hash = String::new();
         loop {
             interval.tick().await;
-            let token_adr = &setting_opts.token_address;
-            if !token_adr.is_empty() && !setting_opts.user_id.is_empty() {
+            if !token_adr.is_empty() && !user_id.is_empty() {
                 match get_token_transfers(request_client.clone(), &token_adr).await {
                     Ok(token_transfer) => {
                         if let Some(first_transfer) = token_transfer.items.first() {
+                            // println!("First transfer {}: {}", first_transfer.tx_hash.clone(), first_transfer.to.name.clone().unwrap_or_default());
                             let transaction_hash = first_transfer.tx_hash.clone();
                             let current_transaction_to_name = first_transfer.to.name.clone().unwrap_or_default();
                             if flag_transaction_hash != transaction_hash && !current_transaction_to_name.is_empty() {
                                 flag_transaction_hash = transaction_hash;
                                 
+                                // println!("current_buy_transaction_to_name:  {}", current_transaction_to_name);
                                 //get setting options
-                                let website_link = &setting_opts.website_link;
-                                let tg_link = &setting_opts.tg_link;
-                                let twitter_link = &setting_opts.twitter_link;
-                                let emoji = &setting_opts.emoji;
-                                let min_buy_amount = &setting_opts.min_buy_amount;
-                                let buy_step = &setting_opts.buy_step;
-                                let media_toggle = &setting_opts.media_toggle;
-                                let media_file_id = &setting_opts.media_file_id;
-                                let media_type = &setting_opts.media_type;
+                                let selected_setting_opts = get_setting_opt(&pool, user_id.to_string(), group_chat_id.to_string(), token_adr.to_string()).await.unwrap();
+                                // let website_link = &setting_opts.website_link;
+                                let website_link = &selected_setting_opts.website_link;
+                                // let tg_link = &setting_opts.tg_link;
+                                let tg_link = &selected_setting_opts.tg_link;
+                                // let twitter_link = &setting_opts.twitter_link;
+                                let twitter_link = &selected_setting_opts.twitter_link;
+                                // let emoji = &setting_opts.emoji;
+                                let emoji = &selected_setting_opts.emoji;
+                                // let min_buy_amount = &setting_opts.min_buy_amount;
+                                let min_buy_amount = &selected_setting_opts.min_buy_amount;
+                                // let buy_step = &setting_opts.buy_step;
+                                let buy_step = &selected_setting_opts.buy_step;
+                                // let media_toggle = &setting_opts.media_toggle;
+                                let media_toggle = &selected_setting_opts.media_toggle;
+                                // let media_file_id = &setting_opts.media_file_id;
+                                let media_file_id = &selected_setting_opts.media_file_id;
+                                // let media_type = &setting_opts.media_type;
+                                let media_type = &selected_setting_opts.media_type;
                                 
                                 //get token overview
                                 let token_overview = get_token_overview(request_client.clone(), &debank_api_key, &token_adr).await.unwrap();
@@ -535,7 +549,6 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
 
                                 //make message
                                 let token_address = &token_transfer.items[0].token.address;
-                                // let token_name = &token_transfer.items[0].token.name;
                                 let token_symbol = &token_transfer.items[0].token.symbol;
                                 let token_decimals = &token_transfer.items[0].token.decimals.parse().unwrap_or(0.0);
                                 let token_tx_decimal = &token_transfer.items[0].total.decimals.parse().unwrap_or(0.0);
@@ -545,12 +558,10 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
 
                                 //get transaction info
                                 let tx_info = get_tx_info(request_client.clone(), &flag_transaction_hash).await.unwrap();
-                                // let tx_fee = controll_big_float(tx_info.fee.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32));
                                 let tx_value = token_tx_value - tx_info.fee.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32);
                                 let tx_value_output = num_floating_point(&tx_value, 5);
                                 let tx_value_usd = controll_big_float(tx_value * token_price);
                                 let tx_total_usd = controll_big_float(token_tx_value * token_price);
-                                // let tx_value = controll_big_float(tx_info.value.parse().unwrap_or(0.0) / 10_f64.powi(*token_decimals as i32));
                             
                                 let mcap = controll_big_float(total_supply * token_price);
                             
@@ -575,10 +586,6 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
                                         token_address, tx_value_usd,  token_symbol, flag_transaction_hash, mcap, tx_value_output, token_price_output, tx_total_usd, tg_link, twitter_link, website_link, emoji_string
                                     );
                             
-                    
-                                    // bot.send_message(chat_id, text)
-                                    //     .parse_mode(teloxide::types::ParseMode::Html)
-                                    //         .await.unwrap();
                                     if *media_toggle && media_file_id.clone().is_some() {
                                         if media_type == "photo" {
                                             bot.send_photo(ChatId(group_chat_id.parse().expect("REASON")), InputFile::file_id(media_file_id.clone().unwrap()))
@@ -607,9 +614,6 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
                     }
                     Err(e) => {
                         error!("Error fetching token overview: {}", e);
-                        // bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), "Invalid token address or Failed API request. Please try again!")
-                        // bot.send_message(ChatId(group_chat_id.parse().expect("REASON")), e.to_string())
-                        //     .await.unwrap();
                         continue;
                     }
                 };
@@ -617,8 +621,7 @@ async fn confirm_style_change(bot: Bot, setting_opts: SettingOpts) -> ResponseRe
                 break;
             }
         }
-    });
-    Ok(())
+    });    Ok(())
 }
 
 async fn delete_and_back_to_new_token(bot: Bot, chat_id: ChatId, setting_opts_arc: Arc<RwLock<SettingOpts>>) -> ResponseResult<()> {
